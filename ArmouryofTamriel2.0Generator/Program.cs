@@ -114,8 +114,9 @@ namespace ArmouryofTamriel2Generator
         public static readonly Style AncientStyle = new("Ancient", FormKey.Factory("019054:Armoury of Tamriel.esm"));
         public static readonly Style DawnguardStyle = new("Dawnguard", FormKey.Factory("02C34A:Armoury of Tamriel.esm"));
 
+        public static readonly Style HideStyle = new("Hide");
+        public static readonly Style LeatherStyle = new("Leather", FormKey.Factory("02B6EA:Armoury of Tamriel.esm"));
         public static readonly Style ScaleStyle = new("Scale", FormKey.Factory("02B6E8:Armoury of Tamriel.esm"));
-
         public static readonly Style CompanionsStyle = new("Companions", FormKey.Factory("02B6EB:Armoury of Tamriel.esm"));
     }
 
@@ -354,44 +355,80 @@ namespace ArmouryofTamriel2Generator
             // CSWAP
             if (CSWAP)
             {
-                var CSWAParmor = newarmor.Duplicate(state.PatchMod.GetNextFormKey());
+                CreateCSWAP(state, newarmor, newMaterial);
+            }
+        }
+        public static Armor CreateCSWAP(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, IArmorGetter armor, Material material)
+        {
+            FormLink<IItemGetter> heavyArmor;
+            FormLink<IItemGetter> lightArmor;
 
-                FormLink<IItemGetter> heavyArmor;
-                FormLink<IItemGetter> lightArmor;
-
-                // Armor
-                if (CSWAParmor.BodyTemplate == null || CSWAParmor.Keywords == null) throw new Exception();
-                if (CSWAParmor.BodyTemplate.ArmorType == ArmorType.HeavyArmor)
+            // Armor
+            var CSWAParmor = armor.Duplicate(state.PatchMod.GetNextFormKey());
+            if (armor.EditorID == null) throw new Exception();
+            string editorid;
+            if (armor.EditorID.Contains("CSWAP"))
+            {
+                editorid = armor.EditorID.Replace("400Armor", "400ArmorCSWAP");
+            } else
+            {
+                editorid = armor.EditorID.Replace("CSWAP", "");
+            }
+            CSWAParmor.EditorID = editorid;
+            if (CSWAParmor.BodyTemplate == null || CSWAParmor.Keywords == null) throw new Exception();
+            if (CSWAParmor.BodyTemplate.ArmorType == ArmorType.HeavyArmor)
+            {
+                CSWAParmor.BodyTemplate.ArmorType = ArmorType.LightArmor;
+                heavyArmor = (FormLink<IItemGetter>)armor.AsLink();
+                lightArmor = (FormLink<IItemGetter>)CSWAParmor.AsLink();
+                if (!armor.MajorFlags.HasFlag(Armor.MajorFlag.Shield))
                 {
                     CSWAParmor.Keywords.Remove(ArmorHeavy);
                     CSWAParmor.Keywords.Add(ArmorLight);
-                    CSWAParmor.BodyTemplate.ArmorType = ArmorType.LightArmor;
-                    heavyArmor = (FormLink<IItemGetter>)newarmor.AsLink();
-                    lightArmor = (FormLink<IItemGetter>)CSWAParmor.AsLink();
-                } else
+                }
+            }
+            else
+            {
+                CSWAParmor.BodyTemplate.ArmorType = ArmorType.HeavyArmor;
+                heavyArmor = (FormLink<IItemGetter>)CSWAParmor.AsLink();
+                lightArmor = (FormLink<IItemGetter>)armor.AsLink(); 
+                if (!armor.MajorFlags.HasFlag(Armor.MajorFlag.Shield))
                 {
-
                     CSWAParmor.Keywords.Remove(ArmorLight);
                     CSWAParmor.Keywords.Add(ArmorHeavy);
-                    CSWAParmor.BodyTemplate.ArmorType = ArmorType.HeavyArmor;
-                    heavyArmor = (FormLink<IItemGetter>)CSWAParmor.AsLink();
-                    lightArmor = (FormLink<IItemGetter>)newarmor.AsLink();
                 }
-                state.PatchMod.Armors.Set(CSWAParmor);
+            }
+            state.PatchMod.Armors.Set(CSWAParmor);
 
-                // Temper
-                var CSWAPtemper = newTemper.Duplicate(state.PatchMod.GetNextFormKey());
-                CSWAPtemper.EditorID = newTemper.EditorID.Replace("400Recipe", "400RecipeCSWAP");
-                CSWAPtemper.CreatedObject = CSWAParmor.AsNullableLink();
-                state.PatchMod.ConstructibleObjects.Set(CSWAPtemper);
-
-                // Convert Light to Heavy
-                var convertHeavy = new ConstructibleObject(state.PatchMod)
+            // Temper
+            var CSWAPtemper = new ConstructibleObject(state.PatchMod)
+            {
+                EditorID = "Temper" + editorid,
+                CreatedObjectCount = 1,
+                CreatedObject = CSWAParmor.AsNullableLink(),
+                Items = new Noggog.ExtendedList<ContainerEntry>
                 {
-                    EditorID = "400RecipeCSWAPLighttoHeavy" + editorID,
-                    CreatedObjectCount = 1,
-                    CreatedObject = (IFormLinkNullable<IConstructibleGetter>)heavyArmor,
-                    Items = new Noggog.ExtendedList<ContainerEntry>
+                    new ContainerEntry()
+                    {
+                        Item = new ContainerItem()
+                        {
+                            Item = new FormLink<IItemGetter>(material.Ingot),
+                            Count = 1
+                        }
+                    }
+                },
+                Conditions = temperConditions,
+                WorkbenchKeyword = armorTable
+            };
+            state.PatchMod.ConstructibleObjects.Set(CSWAPtemper);
+
+            // Convert Light to Heavy
+            var convertHeavy = new ConstructibleObject(state.PatchMod)
+            {
+                EditorID = "400RecipeCSWAPLighttoHeavy" + armor.EditorID.Replace("CSWAP", ""),
+                CreatedObjectCount = 1,
+                CreatedObject = (IFormLinkNullable<IConstructibleGetter>)heavyArmor,
+                Items = new Noggog.ExtendedList<ContainerEntry>
                     {
                         new ContainerEntry()
                         {
@@ -402,7 +439,7 @@ namespace ArmouryofTamriel2Generator
                             }
                         }
                     },
-                    Conditions = new Noggog.ExtendedList<Condition> 
+                Conditions = new Noggog.ExtendedList<Condition>
                     {
                         new ConditionFloat
                         {
@@ -416,17 +453,17 @@ namespace ArmouryofTamriel2Generator
                             }
                         },
                     },
-                    WorkbenchKeyword = armorSwap
-                };
-                state.PatchMod.ConstructibleObjects.Set(convertHeavy);
+                WorkbenchKeyword = armorSwap
+            };
+            state.PatchMod.ConstructibleObjects.Set(convertHeavy);
 
-                // Convert Heavy to Light
-                var convertLight = new ConstructibleObject(state.PatchMod)
-                {
-                    EditorID = "400RecipeCSWAPHeavytoLight" + editorID,
-                    CreatedObjectCount = 1,
-                    CreatedObject = (IFormLinkNullable<IConstructibleGetter>)lightArmor,
-                    Items = new Noggog.ExtendedList<ContainerEntry>
+            // Convert Heavy to Light
+            var convertLight = new ConstructibleObject(state.PatchMod)
+            {
+                EditorID = "400RecipeCSWAPHeavytoLight" + armor.EditorID.Replace("CSWAP", ""),
+                CreatedObjectCount = 1,
+                CreatedObject = (IFormLinkNullable<IConstructibleGetter>)lightArmor,
+                Items = new Noggog.ExtendedList<ContainerEntry>
                     {
                         new ContainerEntry()
                         {
@@ -437,7 +474,7 @@ namespace ArmouryofTamriel2Generator
                             }
                         }
                     },
-                    Conditions = new Noggog.ExtendedList<Condition>
+                Conditions = new Noggog.ExtendedList<Condition>
                     {
                         new ConditionFloat
                         {
@@ -451,15 +488,12 @@ namespace ArmouryofTamriel2Generator
                             }
                         },
                     },
-                    WorkbenchKeyword = armorSwap
-                };
-                state.PatchMod.ConstructibleObjects.Set(convertLight);
-            }
-        }
-        public static void CreateCSWAP(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, IArmorGetter armor, Material material)
-        {
+                WorkbenchKeyword = armorSwap
+            };
+            state.PatchMod.ConstructibleObjects.Set(convertLight);
 
-        };
+            return CSWAParmor;
+        }
 
 
 
@@ -666,32 +700,126 @@ namespace ArmouryofTamriel2Generator
                 var armor = armoridk.Record;
                 if (armor.EditorID == null) continue;
 
-                if (armor.EditorID.Contains("400IronCompanions"))
-                {
-                    CreateArmor(state, armor, Material.IronArmor, Material.SteelArmor, Style.CompanionsStyle);
-                    CreateArmor(state, armor, Material.IronArmor, Material.QuickSilverArmor, Style.CompanionsStyle);
-                    CreateArmor(state, armor, Material.IronArmor, Material.OrichalcumArmor, Style.CompanionsStyle);
-                    CreateArmor(state, armor, Material.IronArmor, Material.MoonstoneArmor, Style.CompanionsStyle);
-                    CreateArmor(state, armor, Material.IronArmor, Material.DwarvenArmor, Style.CompanionsStyle);
-                    CreateArmor(state, armor, Material.IronArmor, Material.DaedricArmor, Style.CompanionsStyle);
-                    CreateArmor(state, armor, Material.IronArmor, Material.EbonyArmor, Style.CompanionsStyle);
-                    CreateArmor(state, armor, Material.IronArmor, Material.GlassArmor, Style.CompanionsStyle);
-                    CreateArmor(state, armor, Material.IronArmor, Material.ALTDaedricArmor, Style.CompanionsStyle);
-                    CreateArmor(state, armor, Material.IronArmor, Material.ALTEbonyArmor, Style.CompanionsStyle);
-                }
+                /*
+                CreateArmor(state, armor, Material.IronArmor, Material.IronArmor, Style.BasicStyle);
+                CreateArmor(state, armor, Material.IronArmor, Material.SteelArmor, Style.BasicStyle);
+                CreateArmor(state, armor, Material.IronArmor, Material.MoonstoneArmor, Style.BasicStyle, true);
+                CreateArmor(state, armor, Material.IronArmor, Material.OrichalcumArmor, Style.BasicStyle);
+                CreateArmor(state, armor, Material.IronArmor, Material.QuickSilverArmor, Style.BasicStyle, true);
+                CreateArmor(state, armor, Material.IronArmor, Material.DwarvenArmor, Style.BasicStyle);
+                CreateArmor(state, armor, Material.IronArmor, Material.GlassArmor, Style.BasicStyle, true);
+                CreateArmor(state, armor, Material.IronArmor, Material.EbonyArmor, Style.BasicStyle);
+                CreateArmor(state, armor, Material.IronArmor, Material.DaedricArmor, Style.BasicStyle);
+                CreateArmor(state, armor, Material.IronArmor, Material.ALTEbonyArmor, Style.BasicStyle);
+                CreateArmor(state, armor, Material.IronArmor, Material.ALTDaedricArmor, Style.BasicStyle);
+                */
 
-                if (armor.EditorID.Contains("400ArmorMoonstoneAltmer"))
+                if (armor.EditorID.Contains("400ArmorIronBasic"))
                 {
-                    CreateArmor(state, armor, Material.MoonstoneArmor, Material.IronArmor, Style.AltmerStyle);
-                    CreateArmor(state, armor, Material.MoonstoneArmor, Material.SteelArmor, Style.AltmerStyle);
-                    CreateArmor(state, armor, Material.MoonstoneArmor, Material.QuickSilverArmor, Style.AltmerStyle, true);
-                    CreateArmor(state, armor, Material.MoonstoneArmor, Material.OrichalcumArmor, Style.AltmerStyle);
-                    CreateArmor(state, armor, Material.MoonstoneArmor, Material.DwarvenArmor, Style.AltmerStyle);
-                    CreateArmor(state, armor, Material.MoonstoneArmor, Material.DaedricArmor, Style.AltmerStyle);
-                    CreateArmor(state, armor, Material.MoonstoneArmor, Material.EbonyArmor, Style.AltmerStyle);
-                    CreateArmor(state, armor, Material.MoonstoneArmor, Material.GlassArmor, Style.AltmerStyle, true);
-                    CreateArmor(state, armor, Material.MoonstoneArmor, Material.ALTDaedricArmor, Style.AltmerStyle);
-                    CreateArmor(state, armor, Material.MoonstoneArmor, Material.ALTEbonyArmor, Style.AltmerStyle);
+                    CreateArmor(state, armor, Material.IronArmor, Material.SteelArmor, Style.BasicStyle);
+                    CreateArmor(state, armor, Material.IronArmor, Material.MoonstoneArmor, Style.BasicStyle, true);
+                    CreateArmor(state, armor, Material.IronArmor, Material.OrichalcumArmor, Style.BasicStyle);
+                    CreateArmor(state, armor, Material.IronArmor, Material.QuickSilverArmor, Style.BasicStyle, true);
+                    CreateArmor(state, armor, Material.IronArmor, Material.DwarvenArmor, Style.BasicStyle);
+                    CreateArmor(state, armor, Material.IronArmor, Material.GlassArmor, Style.BasicStyle, true);
+                    CreateArmor(state, armor, Material.IronArmor, Material.EbonyArmor, Style.BasicStyle);
+                    CreateArmor(state, armor, Material.IronArmor, Material.DaedricArmor, Style.BasicStyle);
+                    CreateArmor(state, armor, Material.IronArmor, Material.ALTEbonyArmor, Style.BasicStyle);
+                    CreateArmor(state, armor, Material.IronArmor, Material.ALTDaedricArmor, Style.BasicStyle);
+                }
+                if (armor.EditorID.Contains("400ArmorSteelNordic"))
+                {
+                    CreateArmor(state, armor, Material.SteelArmor, Material.IronArmor, Style.NordStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.MoonstoneArmor, Style.NordStyle, true);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.OrichalcumArmor, Style.NordStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.QuickSilverArmor, Style.NordStyle, true);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.DwarvenArmor, Style.NordStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.GlassArmor, Style.NordStyle, true);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.EbonyArmor, Style.NordStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.DaedricArmor, Style.NordStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.ALTEbonyArmor, Style.NordStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.ALTDaedricArmor, Style.NordStyle);
+                }
+                else if (armor.EditorID.Contains("400ArmorCSWAPMoonstoneAltmer"))
+                {
+                    var CSWAP = CreateCSWAP(state, armor, Material.MoonstoneArmor);
+                    CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.IronArmor, Style.AltmerStyle);
+                    CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.SteelArmor, Style.AltmerStyle);
+                    CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.QuickSilverArmor, Style.AltmerStyle, true);
+                    CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.OrichalcumArmor, Style.AltmerStyle);
+                    CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.DwarvenArmor, Style.AltmerStyle);
+                    CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.DaedricArmor, Style.AltmerStyle);
+                    CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.EbonyArmor, Style.AltmerStyle);
+                    CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.GlassArmor, Style.AltmerStyle, true);
+                    CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.ALTDaedricArmor, Style.AltmerStyle);
+                    CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.ALTEbonyArmor, Style.AltmerStyle);
+                }
+                if (armor.EditorID.Contains("400ArmorOrichalcumOrcish"))
+                {
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.IronArmor, Style.OrcishStyle);
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.SteelArmor, Style.OrcishStyle);
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.MoonstoneArmor, Style.OrcishStyle, true);
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.OrichalcumArmor, Style.OrcishStyle);
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.QuickSilverArmor, Style.OrcishStyle, true);
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.DwarvenArmor, Style.OrcishStyle);
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.GlassArmor, Style.OrcishStyle, true);
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.EbonyArmor, Style.OrcishStyle);
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.DaedricArmor, Style.OrcishStyle);
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.ALTEbonyArmor, Style.OrcishStyle);
+                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.ALTDaedricArmor, Style.OrcishStyle);
+                }
+                else if (armor.EditorID.Contains("400ArmorDwarvenDwemer"))
+                {
+                    CreateArmor(state, armor, Material.DwarvenArmor, Material.IronArmor, Style.DwemerStyle);
+                    CreateArmor(state, armor, Material.DwarvenArmor, Material.SteelArmor, Style.DwemerStyle);
+                    CreateArmor(state, armor, Material.DwarvenArmor, Material.MoonstoneArmor, Style.DwemerStyle, true);
+                    CreateArmor(state, armor, Material.DwarvenArmor, Material.OrichalcumArmor, Style.DwemerStyle);
+                    CreateArmor(state, armor, Material.DwarvenArmor, Material.QuickSilverArmor, Style.DwemerStyle, true);
+                    CreateArmor(state, armor, Material.DwarvenArmor, Material.GlassArmor, Style.DwemerStyle, true);
+                    CreateArmor(state, armor, Material.DwarvenArmor, Material.EbonyArmor, Style.DwemerStyle);
+                    CreateArmor(state, armor, Material.DwarvenArmor, Material.DaedricArmor, Style.DwemerStyle);
+                    CreateArmor(state, armor, Material.DwarvenArmor, Material.ALTEbonyArmor, Style.DwemerStyle);
+                    CreateArmor(state, armor, Material.DwarvenArmor, Material.ALTDaedricArmor, Style.DwemerStyle);
+                }
+                else if (armor.EditorID.Contains("400ArmorCSWAPGlassOrnate"))
+                {
+                    var CSWAP = CreateCSWAP(state, armor, Material.GlassArmor);
+                    CreateArmor(state, CSWAP, Material.GlassArmor, Material.IronArmor, Style.OrnateStyle);
+                    CreateArmor(state, CSWAP, Material.GlassArmor, Material.SteelArmor, Style.OrnateStyle);
+                    CreateArmor(state, CSWAP, Material.GlassArmor, Material.QuickSilverArmor, Style.OrnateStyle, true);
+                    CreateArmor(state, CSWAP, Material.GlassArmor, Material.OrichalcumArmor, Style.OrnateStyle);
+                    CreateArmor(state, CSWAP, Material.GlassArmor, Material.MoonstoneArmor, Style.OrnateStyle, true);
+                    CreateArmor(state, CSWAP, Material.GlassArmor, Material.DwarvenArmor, Style.OrnateStyle);
+                    CreateArmor(state, CSWAP, Material.GlassArmor, Material.DaedricArmor, Style.OrnateStyle);
+                    CreateArmor(state, CSWAP, Material.GlassArmor, Material.EbonyArmor, Style.OrnateStyle);
+                    CreateArmor(state, CSWAP, Material.GlassArmor, Material.ALTDaedricArmor, Style.OrnateStyle);
+                    CreateArmor(state, CSWAP, Material.GlassArmor, Material.ALTEbonyArmor, Style.OrnateStyle);
+                }
+                else if (armor.EditorID.Contains("400ArmorEbonyDunmer"))
+                {
+                    CreateArmor(state, armor, Material.EbonyArmor, Material.IronArmor, Style.DunmerStyle);
+                    CreateArmor(state, armor, Material.EbonyArmor, Material.SteelArmor, Style.DunmerStyle);
+                    CreateArmor(state, armor, Material.EbonyArmor, Material.MoonstoneArmor, Style.DunmerStyle, true);
+                    CreateArmor(state, armor, Material.EbonyArmor, Material.OrichalcumArmor, Style.DunmerStyle);
+                    CreateArmor(state, armor, Material.EbonyArmor, Material.QuickSilverArmor, Style.DunmerStyle, true);
+                    CreateArmor(state, armor, Material.EbonyArmor, Material.DwarvenArmor, Style.DunmerStyle);
+                    CreateArmor(state, armor, Material.EbonyArmor, Material.GlassArmor, Style.DunmerStyle, true);
+                    CreateArmor(state, armor, Material.EbonyArmor, Material.DaedricArmor, Style.DunmerStyle);
+                    CreateArmor(state, armor, Material.EbonyArmor, Material.ALTEbonyArmor, Style.DunmerStyle);
+                    CreateArmor(state, armor, Material.EbonyArmor, Material.ALTDaedricArmor, Style.DunmerStyle);
+                }
+                else if (armor.EditorID.Contains("400ArmorDaedricDremora"))
+                {
+                    CreateArmor(state, armor, Material.DaedricArmor, Material.IronArmor, Style.DremoraStyle);
+                    CreateArmor(state, armor, Material.DaedricArmor, Material.SteelArmor, Style.DremoraStyle);
+                    CreateArmor(state, armor, Material.DaedricArmor, Material.MoonstoneArmor, Style.DremoraStyle, true);
+                    CreateArmor(state, armor, Material.DaedricArmor, Material.OrichalcumArmor, Style.DremoraStyle);
+                    CreateArmor(state, armor, Material.DaedricArmor, Material.QuickSilverArmor, Style.DremoraStyle, true);
+                    CreateArmor(state, armor, Material.DaedricArmor, Material.DwarvenArmor, Style.DremoraStyle);
+                    CreateArmor(state, armor, Material.DaedricArmor, Material.GlassArmor, Style.DremoraStyle, true);
+                    CreateArmor(state, armor, Material.DaedricArmor, Material.EbonyArmor, Style.DremoraStyle);
+                    CreateArmor(state, armor, Material.DaedricArmor, Material.ALTEbonyArmor, Style.DremoraStyle);
+                    CreateArmor(state, armor, Material.DaedricArmor, Material.ALTDaedricArmor, Style.DremoraStyle);
                 }
             }
         }
