@@ -68,8 +68,8 @@ namespace ArmouryofTamriel2Generator
         public static readonly Material DaedricArmor = new("Daedric", FormKey.Factory("05AD9D:Skyrim.esm"), FormKey.Factory("06BBD4:Skyrim.esm"), FormKey.Factory("0CB413:Skyrim.esm"));
         public static readonly Material QuickSilverArmor = new("Silver", FormKey.Factory("05ADA0:Skyrim.esm"), FormKey.Factory("06BBE2:Skyrim.esm"), FormKey.Factory("014A21:Armoury of Tamriel.esm"));
 
-        public static readonly Material ALTEbonyArmor = new("ALTEbony", FormKey.Factory("05AD9D:Skyrim.esm"), FormKey.Factory("06BBD8:Skyrim.esm"), FormKey.Factory("0CB412:Skyrim.esm")); 
-        public static readonly Material ALTDaedricArmor = new("ALTDaedric", FormKey.Factory("05AD9D:Skyrim.esm"), FormKey.Factory("06BBD4:Skyrim.esm"), FormKey.Factory("0CB413:Skyrim.esm"));
+        public static readonly Material ALTEbonyArmor = new("Ebony", FormKey.Factory("05AD9D:Skyrim.esm"), FormKey.Factory("06BBD8:Skyrim.esm"), FormKey.Factory("0CB412:Skyrim.esm")); 
+        public static readonly Material ALTDaedricArmor = new("Daedric", FormKey.Factory("05AD9D:Skyrim.esm"), FormKey.Factory("06BBD4:Skyrim.esm"), FormKey.Factory("0CB413:Skyrim.esm"));
     }
 
     public class Style
@@ -257,8 +257,9 @@ namespace ArmouryofTamriel2Generator
             state.PatchMod.ConstructibleObjects.Set(newTemper);
         }
 
-        public static void CreateArmor(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, IArmorGetter armor, Material oldMaterial, Material newMaterial, Style style, bool CSWAP = false)
+        public static void CreateArmor(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, IArmorGetter armor, Material oldMaterial, Material newMaterial, Style? style = null, bool CSWAP = false)
         {
+            if (style == null) style = Style.BasicStyle;
             // Item
             var newarmor = state.PatchMod.Armors.DuplicateInAsNewRecord(armor);
 
@@ -355,55 +356,32 @@ namespace ArmouryofTamriel2Generator
             // CSWAP
             if (CSWAP)
             {
-                CreateCSWAP(state, newarmor, newMaterial);
+                CreateCSWAPLight(state, newarmor, newMaterial);
             }
         }
-        public static Armor CreateCSWAP(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, IArmorGetter armor, Material material)
-        {
-            FormLink<IItemGetter> heavyArmor;
-            FormLink<IItemGetter> lightArmor;
 
+        public static Armor CreateCSWAPHeavy(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, IArmorGetter armor, Material material)
+        {
             // Armor
             var CSWAParmor = armor.Duplicate(state.PatchMod.GetNextFormKey());
             if (armor.EditorID == null) throw new Exception();
-            string editorid;
-            if (armor.EditorID.Contains("CSWAP"))
-            {
-                editorid = armor.EditorID.Replace("400Armor", "400ArmorCSWAP");
-            } else
-            {
-                editorid = armor.EditorID.Replace("CSWAP", "");
-            }
-            CSWAParmor.EditorID = editorid;
+            CSWAParmor.EditorID = armor.EditorID.Replace("400ArmorCSWAP", "400Armor");
+            Console.WriteLine("generating CSWAP: " + CSWAParmor.EditorID);
+
             if (CSWAParmor.BodyTemplate == null || CSWAParmor.Keywords == null) throw new Exception();
-            if (CSWAParmor.BodyTemplate.ArmorType == ArmorType.HeavyArmor)
+            CSWAParmor.BodyTemplate.ArmorType = ArmorType.HeavyArmor;
+            if (!armor.MajorFlags.HasFlag(Armor.MajorFlag.Shield))
             {
-                CSWAParmor.BodyTemplate.ArmorType = ArmorType.LightArmor;
-                heavyArmor = (FormLink<IItemGetter>)armor.AsLink();
-                lightArmor = (FormLink<IItemGetter>)CSWAParmor.AsLink();
-                if (!armor.MajorFlags.HasFlag(Armor.MajorFlag.Shield))
-                {
-                    CSWAParmor.Keywords.Remove(ArmorHeavy);
-                    CSWAParmor.Keywords.Add(ArmorLight);
-                }
+                CSWAParmor.Keywords.Remove(ArmorLight);
+                CSWAParmor.Keywords.Add(ArmorHeavy);
             }
-            else
-            {
-                CSWAParmor.BodyTemplate.ArmorType = ArmorType.HeavyArmor;
-                heavyArmor = (FormLink<IItemGetter>)CSWAParmor.AsLink();
-                lightArmor = (FormLink<IItemGetter>)armor.AsLink(); 
-                if (!armor.MajorFlags.HasFlag(Armor.MajorFlag.Shield))
-                {
-                    CSWAParmor.Keywords.Remove(ArmorLight);
-                    CSWAParmor.Keywords.Add(ArmorHeavy);
-                }
-            }
+
             state.PatchMod.Armors.Set(CSWAParmor);
 
             // Temper
             var CSWAPtemper = new ConstructibleObject(state.PatchMod)
             {
-                EditorID = "Temper" + editorid,
+                EditorID = "Temper" + CSWAParmor.EditorID,
                 CreatedObjectCount = 1,
                 CreatedObject = CSWAParmor.AsNullableLink(),
                 Items = new Noggog.ExtendedList<ContainerEntry>
@@ -425,34 +403,34 @@ namespace ArmouryofTamriel2Generator
             // Convert Light to Heavy
             var convertHeavy = new ConstructibleObject(state.PatchMod)
             {
-                EditorID = "400RecipeCSWAPLighttoHeavy" + armor.EditorID.Replace("CSWAP", ""),
+                EditorID = "RecipeCSWAPLighttoHeavy" + CSWAParmor.EditorID,
                 CreatedObjectCount = 1,
-                CreatedObject = (IFormLinkNullable<IConstructibleGetter>)heavyArmor,
+                CreatedObject = CSWAParmor.AsNullableLink(),
                 Items = new Noggog.ExtendedList<ContainerEntry>
+                {
+                    new ContainerEntry()
                     {
-                        new ContainerEntry()
+                        Item = new ContainerItem()
                         {
-                            Item = new ContainerItem()
-                            {
-                                Item = lightArmor,
-                                Count = 1
-                            }
+                            Item = armor.AsNullableLink(),
+                            Count = 1
+                        }
+                    }
+                },
+                Conditions = new Noggog.ExtendedList<Condition>
+                {
+                    new ConditionFloat
+                    {
+                        CompareOperator = CompareOperator.GreaterThan,
+                        ComparisonValue = 0,
+                        Data = new FunctionConditionData()
+                        {
+                            RunOnType = Condition.RunOnType.Subject,
+                            Function = Condition.Function.GetItemCount,
+                            ParameterOneRecord = armor.AsNullableLink()
                         }
                     },
-                Conditions = new Noggog.ExtendedList<Condition>
-                    {
-                        new ConditionFloat
-                        {
-                            CompareOperator = CompareOperator.GreaterThan,
-                            ComparisonValue = 0,
-                            Data = new FunctionConditionData()
-                            {
-                                RunOnType = Condition.RunOnType.Subject,
-                                Function = Condition.Function.GetItemCount,
-                                ParameterOneRecord = lightArmor
-                            }
-                        },
-                    },
+                },
                 WorkbenchKeyword = armorSwap
             };
             state.PatchMod.ConstructibleObjects.Set(convertHeavy);
@@ -460,34 +438,34 @@ namespace ArmouryofTamriel2Generator
             // Convert Heavy to Light
             var convertLight = new ConstructibleObject(state.PatchMod)
             {
-                EditorID = "400RecipeCSWAPHeavytoLight" + armor.EditorID.Replace("CSWAP", ""),
+                EditorID = "RecipeCSWAPHeavytoLight" + CSWAParmor.EditorID,
                 CreatedObjectCount = 1,
-                CreatedObject = (IFormLinkNullable<IConstructibleGetter>)lightArmor,
+                CreatedObject = armor.AsNullableLink(),
                 Items = new Noggog.ExtendedList<ContainerEntry>
+                {
+                    new ContainerEntry()
                     {
-                        new ContainerEntry()
+                        Item = new ContainerItem()
                         {
-                            Item = new ContainerItem()
-                            {
-                                Item = heavyArmor,
-                                Count = 1
-                            }
+                            Item = CSWAParmor.AsNullableLink(),
+                            Count = 1
+                        }
+                    }
+                },
+                Conditions = new Noggog.ExtendedList<Condition>
+                {
+                    new ConditionFloat
+                    {
+                        CompareOperator = CompareOperator.GreaterThan,
+                        ComparisonValue = 0,
+                        Data = new FunctionConditionData()
+                        {
+                            RunOnType = Condition.RunOnType.Subject,
+                            Function = Condition.Function.GetItemCount,
+                            ParameterOneRecord = CSWAParmor.AsNullableLink()
                         }
                     },
-                Conditions = new Noggog.ExtendedList<Condition>
-                    {
-                        new ConditionFloat
-                        {
-                            CompareOperator = CompareOperator.GreaterThan,
-                            ComparisonValue = 0,
-                            Data = new FunctionConditionData()
-                            {
-                                RunOnType = Condition.RunOnType.Subject,
-                                Function = Condition.Function.GetItemCount,
-                                ParameterOneRecord = heavyArmor
-                            }
-                        },
-                    },
+                },
                 WorkbenchKeyword = armorSwap
             };
             state.PatchMod.ConstructibleObjects.Set(convertLight);
@@ -495,7 +473,118 @@ namespace ArmouryofTamriel2Generator
             return CSWAParmor;
         }
 
+        public static Armor CreateCSWAPLight(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, IArmorGetter armor, Material material)
+        {
+            // Armor
+            var CSWAParmor = armor.Duplicate(state.PatchMod.GetNextFormKey());
+            if (armor.EditorID == null) throw new Exception();
+            CSWAParmor.EditorID = armor.EditorID.Replace("400Armor", "400ArmorCSWAP");
+            Console.WriteLine("generating CSWAP: " + CSWAParmor.EditorID);
 
+            if (CSWAParmor.BodyTemplate == null || CSWAParmor.Keywords == null) throw new Exception();
+            CSWAParmor.BodyTemplate.ArmorType = ArmorType.LightArmor;
+            if (!armor.MajorFlags.HasFlag(Armor.MajorFlag.Shield))
+            {
+                CSWAParmor.Keywords.Remove(ArmorHeavy);
+                CSWAParmor.Keywords.Add(ArmorLight);
+            }
+
+            state.PatchMod.Armors.Set(CSWAParmor);
+
+            // Temper
+            var CSWAPtemper = new ConstructibleObject(state.PatchMod)
+            {
+                EditorID = "Temper" + CSWAParmor.EditorID,
+                CreatedObjectCount = 1,
+                CreatedObject = CSWAParmor.AsNullableLink(),
+                Items = new Noggog.ExtendedList<ContainerEntry>
+                {
+                    new ContainerEntry()
+                    {
+                        Item = new ContainerItem()
+                        {
+                            Item = new FormLink<IItemGetter>(material.Ingot),
+                            Count = 1
+                        }
+                    }
+                },
+                Conditions = temperConditions,
+                WorkbenchKeyword = armorTable
+            };
+            state.PatchMod.ConstructibleObjects.Set(CSWAPtemper);
+
+            // Convert Light to Heavy
+            var convertHeavy = new ConstructibleObject(state.PatchMod)
+            {
+                EditorID = "RecipeCSWAPLighttoHeavy" + armor.EditorID,
+                CreatedObjectCount = 1,
+                CreatedObject = armor.AsNullableLink(),
+                Items = new Noggog.ExtendedList<ContainerEntry>
+                {
+                    new ContainerEntry()
+                    {
+                        Item = new ContainerItem()
+                        {
+                            Item = CSWAParmor.AsNullableLink(),
+                            Count = 1
+                        }
+                    }
+                },
+                Conditions = new Noggog.ExtendedList<Condition>
+                {
+                    new ConditionFloat
+                    {
+                        CompareOperator = CompareOperator.GreaterThan,
+                        ComparisonValue = 0,
+                        Data = new FunctionConditionData()
+                        {
+                            RunOnType = Condition.RunOnType.Subject,
+                            Function = Condition.Function.GetItemCount,
+                            ParameterOneRecord = CSWAParmor.AsNullableLink()
+                        }
+                    },
+                },
+                WorkbenchKeyword = armorSwap
+            };
+            state.PatchMod.ConstructibleObjects.Set(convertHeavy);
+
+            // Convert Heavy to Light
+            var convertLight = new ConstructibleObject(state.PatchMod)
+            {
+                EditorID = "RecipeCSWAPHeavytoLight" + armor.EditorID,
+                CreatedObjectCount = 1,
+                CreatedObject = CSWAParmor.AsNullableLink(),
+                Items = new Noggog.ExtendedList<ContainerEntry>
+                {
+                    new ContainerEntry()
+                    {
+                        Item = new ContainerItem()
+                        {
+                            Item = armor.AsNullableLink(),
+                            Count = 1
+                        }
+                    }
+                },
+                Conditions = new Noggog.ExtendedList<Condition>
+                {
+                    new ConditionFloat
+                    {
+                        CompareOperator = CompareOperator.GreaterThan,
+                        ComparisonValue = 0,
+                        Data = new FunctionConditionData()
+                        {
+                            RunOnType = Condition.RunOnType.Subject,
+                            Function = Condition.Function.GetItemCount,
+                            ParameterOneRecord = armor.AsNullableLink()
+                        }
+                    },
+                },
+                WorkbenchKeyword = armorSwap
+            };
+            state.PatchMod.ConstructibleObjects.Set(convertLight);
+
+            return CSWAParmor;
+        }
 
         public static void RunPatch(IPatcherState<ISkyrimMod, ISkyrimModGetter> state)
         {
@@ -742,7 +831,7 @@ namespace ArmouryofTamriel2Generator
                 }
                 else if (armor.EditorID.Contains("400ArmorCSWAPMoonstoneAltmer"))
                 {
-                    var CSWAP = CreateCSWAP(state, armor, Material.MoonstoneArmor);
+                    var CSWAP = CreateCSWAPHeavy(state, armor, Material.MoonstoneArmor);
                     CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.IronArmor, Style.AltmerStyle);
                     CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.SteelArmor, Style.AltmerStyle);
                     CreateArmor(state, CSWAP, Material.MoonstoneArmor, Material.QuickSilverArmor, Style.AltmerStyle, true);
@@ -783,7 +872,7 @@ namespace ArmouryofTamriel2Generator
                 }
                 else if (armor.EditorID.Contains("400ArmorCSWAPGlassOrnate"))
                 {
-                    var CSWAP = CreateCSWAP(state, armor, Material.GlassArmor);
+                    var CSWAP = CreateCSWAPHeavy(state, armor, Material.GlassArmor);
                     CreateArmor(state, CSWAP, Material.GlassArmor, Material.IronArmor, Style.OrnateStyle);
                     CreateArmor(state, CSWAP, Material.GlassArmor, Material.SteelArmor, Style.OrnateStyle);
                     CreateArmor(state, CSWAP, Material.GlassArmor, Material.QuickSilverArmor, Style.OrnateStyle, true);
@@ -820,6 +909,42 @@ namespace ArmouryofTamriel2Generator
                     CreateArmor(state, armor, Material.DaedricArmor, Material.EbonyArmor, Style.DremoraStyle);
                     CreateArmor(state, armor, Material.DaedricArmor, Material.ALTEbonyArmor, Style.DremoraStyle);
                     CreateArmor(state, armor, Material.DaedricArmor, Material.ALTDaedricArmor, Style.DremoraStyle);
+                }
+                else if (armor.EditorID.Contains("400ArmorIronHide") || armor.EditorID.Contains("400ArmorIronStuddedHide"))
+                {
+                    CreateArmor(state, armor, Material.IronArmor, Material.SteelArmor);
+                    CreateArmor(state, armor, Material.IronArmor, Material.MoonstoneArmor);
+                    CreateArmor(state, armor, Material.IronArmor, Material.OrichalcumArmor);
+                    CreateArmor(state, armor, Material.IronArmor, Material.QuickSilverArmor);
+                    CreateArmor(state, armor, Material.IronArmor, Material.DwarvenArmor);
+                    CreateArmor(state, armor, Material.IronArmor, Material.GlassArmor);
+                    CreateArmor(state, armor, Material.IronArmor, Material.EbonyArmor);
+                    CreateArmor(state, armor, Material.IronArmor, Material.ALTEbonyArmor);
+                    CreateArmor(state, armor, Material.IronArmor, Material.ALTDaedricArmor);
+                }
+                else if (armor.EditorID.Contains("400ArmorSteelStuddedLeather"))
+                {
+                    CreateArmor(state, armor, Material.SteelArmor, Material.IronArmor);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.MoonstoneArmor);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.OrichalcumArmor);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.QuickSilverArmor);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.DwarvenArmor);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.GlassArmor);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.EbonyArmor);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.ALTEbonyArmor);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.ALTDaedricArmor);
+                }
+                else if (armor.EditorID.Contains("400ArmorSteelScaled"))
+                {
+                    CreateArmor(state, armor, Material.SteelArmor, Material.IronArmor, Style.ScaleStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.MoonstoneArmor, Style.ScaleStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.OrichalcumArmor, Style.ScaleStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.QuickSilverArmor, Style.ScaleStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.DwarvenArmor, Style.ScaleStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.GlassArmor, Style.ScaleStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.EbonyArmor, Style.ScaleStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.ALTEbonyArmor, Style.ScaleStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.ALTDaedricArmor, Style.ScaleStyle);
                 }
             }
         }
