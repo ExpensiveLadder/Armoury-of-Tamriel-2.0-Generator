@@ -13,18 +13,15 @@ namespace ArmouryofTamriel2Generator
     public class Material
     {
         public string Name;
+        public string ID;
         public FormKey Ingot;
         public FormKey Keyword;
         public ConditionFloat? PerkRequirement;
 
-        public Material(string name)
-        {
-            Name = name;
-        }
-
         public Material(string name, FormKey ingot, FormKey keyword)
         {
             Name = name;
+            ID = name;
             Ingot = ingot;
             Keyword = keyword;
         }
@@ -34,6 +31,7 @@ namespace ArmouryofTamriel2Generator
             Name = name;
             Ingot = ingot;
             Keyword = keyword;
+            ID = name;
 
             PerkRequirement = new ConditionFloat()
             {
@@ -45,6 +43,15 @@ namespace ArmouryofTamriel2Generator
                     ParameterOneRecord = new FormLink<IPerkGetter>(smithingPerk)
                 }
             };
+        }
+        public Material(string name, FormKey ingot, FormKey keyword, FormKey smithingPerk, string id)
+        {
+            Name = name;
+            Ingot = ingot;
+            Keyword = keyword;
+            ID = id;
+            ID = name;
+            PerkRequirement = new ConditionFloat() { CompareOperator = CompareOperator.EqualTo, ComparisonValue = 1, Data = new FunctionConditionData() { Function = Condition.Function.HasPerk, ParameterOneRecord = new FormLink<IPerkGetter>(smithingPerk) } };
         }
 
         //                                               Name                    Ingot                                 Keyword                         Required Smithing Perk
@@ -68,8 +75,8 @@ namespace ArmouryofTamriel2Generator
         public static readonly Material DaedricArmor = new("Daedric", FormKey.Factory("05AD9D:Skyrim.esm"), FormKey.Factory("06BBD4:Skyrim.esm"), FormKey.Factory("0CB413:Skyrim.esm"));
         public static readonly Material QuickSilverArmor = new("Silver", FormKey.Factory("05ADA0:Skyrim.esm"), FormKey.Factory("06BBE2:Skyrim.esm"), FormKey.Factory("014A21:Armoury of Tamriel.esm"));
 
-        public static readonly Material ALTEbonyArmor = new("Ebony", FormKey.Factory("05AD9D:Skyrim.esm"), FormKey.Factory("06BBD8:Skyrim.esm"), FormKey.Factory("0CB412:Skyrim.esm")); 
-        public static readonly Material ALTDaedricArmor = new("Daedric", FormKey.Factory("05AD9D:Skyrim.esm"), FormKey.Factory("06BBD4:Skyrim.esm"), FormKey.Factory("0CB413:Skyrim.esm"));
+        public static readonly Material ALTEbonyArmor = new("Ebony", FormKey.Factory("05AD9D:Skyrim.esm"), FormKey.Factory("06BBD8:Skyrim.esm"), FormKey.Factory("0CB412:Skyrim.esm"), "ALTEbony"); 
+        public static readonly Material ALTDaedricArmor = new("Daedric", FormKey.Factory("05AD9D:Skyrim.esm"), FormKey.Factory("06BBD4:Skyrim.esm"), FormKey.Factory("0CB413:Skyrim.esm"), "ALTDaedric");
     }
 
     public class Style
@@ -163,9 +170,35 @@ namespace ArmouryofTamriel2Generator
         public static readonly IFormLinkNullable<IKeywordGetter> armorTable = new FormLinkNullable<IKeywordGetter>(FormKey.Factory("0ADB78:Skyrim.esm"));
         public static readonly IFormLinkNullable<Keyword> armorSwap = new FormLinkNullable<Keyword>(FormKey.Factory("02C1BB:Armoury of Tamriel.esm"));
 
-        public static readonly FormLink<Keyword> ArmorHeavy = new FormLink<Keyword>(FormKey.Factory("06BBD2:Skyrim.esm"));
-        public static readonly FormLink<Keyword> ArmorLight = new FormLink<Keyword>(FormKey.Factory("06BBD3:Skyrim.esm"));
+        public static readonly FormLink<Keyword> ArmorHeavy = new(FormKey.Factory("06BBD2:Skyrim.esm"));
+        public static readonly FormLink<Keyword> ArmorLight = new(FormKey.Factory("06BBD3:Skyrim.esm"));
 
+        public static Noggog.ExtendedList<AlternateTexture> SetTextureSets(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, Noggog.ExtendedList<AlternateTexture> texturelist, string oldMaterialID, string newMaterialID)
+        {
+            Noggog.ExtendedList<AlternateTexture> temptexturelist = new();
+            foreach (var texture in texturelist)
+            {
+                var texturegetter = texture.NewTexture.Resolve(state.LinkCache);
+                if (texturegetter.EditorID == null) throw new Exception("null textureset editorid");
+                var newtextureeditorid = texturegetter.EditorID.Replace(oldMaterialID, newMaterialID);
+                if (state.LinkCache.TryResolve<ITextureSetGetter>(newtextureeditorid, out var newtexturegetter))
+                {
+                    Console.WriteLine("setting textureset: " + newtextureeditorid);
+                    temptexturelist.Add(new AlternateTexture()
+                    {
+                        Index = texture.Index,
+                        Name = texture.Name,
+                        NewTexture = newtexturegetter.AsLink()
+                    });
+                }
+                else
+                {
+                    Console.WriteLine("ERROR: Could not find textureset: " + newtextureeditorid);
+                }
+            }
+
+            return texturelist;
+        }
 
         public static void CreateWeapon(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, IWeaponGetter weapon, Material oldMaterial, Material newMaterial, Style style)
         {
@@ -177,7 +210,7 @@ namespace ArmouryofTamriel2Generator
             var oldname = weapon.Name.ToString();
             if (oldname == null) throw new Exception("null name");
 
-            var editorID = weapon.EditorID.Replace(oldMaterial.Name, newMaterial.Name);
+            var editorID = weapon.EditorID.Replace(oldMaterial.ID, newMaterial.ID);
             Console.WriteLine("generating weapon: " + editorID);
 
             neweapon.EditorID = editorID;
@@ -198,7 +231,13 @@ namespace ArmouryofTamriel2Generator
                 neweapon.Keywords.Add(newMaterial.Keyword);
             }
 
-            // Model
+            // Texture Sets
+            if (neweapon.Model?.AlternateTextures != null)
+            {
+                neweapon.Model.AlternateTextures = SetTextureSets(state, neweapon.Model.AlternateTextures, oldMaterial.ID, newMaterial.ID);
+            }
+
+            // First Person Model
 
             var oldweaponmodel = weapon.FirstPersonModel.Resolve(state.LinkCache);
             if (oldweaponmodel == null) throw new Exception();
@@ -207,6 +246,11 @@ namespace ArmouryofTamriel2Generator
             neweapon.FirstPersonModel = new FormLinkNullable<IStaticGetter>(neweaponmodel);
 
             neweaponmodel.EditorID = "1stPerson" + editorID;
+
+            if (neweaponmodel.Model?.AlternateTextures != null)
+            {
+                neweaponmodel.Model.AlternateTextures = SetTextureSets(state, neweaponmodel.Model.AlternateTextures, oldMaterial.ID, newMaterial.ID);
+            }
 
             state.PatchMod.Statics.Set(neweaponmodel);
             state.PatchMod.Weapons.Set(neweapon);
@@ -268,7 +312,7 @@ namespace ArmouryofTamriel2Generator
             var oldname = armor.Name.ToString();
             if (oldname == null) throw new Exception("null name");
 
-            var editorID = armor.EditorID.Replace(oldMaterial.Name, newMaterial.Name);
+            var editorID = armor.EditorID.Replace(oldMaterial.ID, newMaterial.ID);
             Console.WriteLine("generating armor: " + editorID);
 
             newarmor.EditorID = editorID;
@@ -290,15 +334,45 @@ namespace ArmouryofTamriel2Generator
                 newarmor.Keywords.Add(newMaterial.Keyword);
             }
 
+            // Texture Sets
+            if (newarmor.WorldModel?.Female?.Model?.AlternateTextures != null)
+            {
+                newarmor.WorldModel.Female.Model.AlternateTextures = SetTextureSets(state, newarmor.WorldModel.Female.Model.AlternateTextures, oldMaterial.ID, newMaterial.ID);
+            }
+            if (newarmor.WorldModel?.Male?.Model?.AlternateTextures != null)
+            {
+                newarmor.WorldModel.Male.Model.AlternateTextures = SetTextureSets(state, newarmor.WorldModel.Male.Model.AlternateTextures, oldMaterial.ID, newMaterial.ID);
+            }
+
             // Armor Addons
 
             var newarmature = new Noggog.ExtendedList<IFormLinkGetter<IArmorAddonGetter>>();
-            foreach (var armoraddon in newarmor.Armature)
+            foreach (var armoraddongetter in newarmor.Armature)
             {
-                var newarmoraddon = state.PatchMod.ArmorAddons.DuplicateInAsNewRecord(armoraddon.Resolve(state.LinkCache));
-                newarmoraddon.EditorID = editorID + "AA";
-                state.PatchMod.ArmorAddons.Set(newarmoraddon);
+                var armoraddon = armoraddongetter.Resolve(state.LinkCache);
+                var newarmoraddon = state.PatchMod.ArmorAddons.DuplicateInAsNewRecord(armoraddon);
+                if (armoraddon.EditorID == null) throw new Exception("armoraddon: " + armoraddongetter + " has a null editorid");
+                newarmoraddon.EditorID = armoraddon.EditorID.Replace(oldMaterial.Name, newMaterial.Name);
 
+                // Armor Addon Texture Sets
+                if (newarmoraddon.WorldModel?.Female?.AlternateTextures != null)
+                {
+                    newarmoraddon.WorldModel.Female.AlternateTextures = SetTextureSets(state, newarmoraddon.WorldModel.Female.AlternateTextures, oldMaterial.ID, newMaterial.ID);
+                }
+                if (newarmoraddon.WorldModel?.Male?.AlternateTextures != null)
+                {
+                    newarmoraddon.WorldModel.Male.AlternateTextures = SetTextureSets(state, newarmoraddon.WorldModel.Male.AlternateTextures, oldMaterial.ID, newMaterial.ID);
+                }
+                if (newarmoraddon.FirstPersonModel?.Female?.AlternateTextures != null)
+                {
+                    newarmoraddon.FirstPersonModel.Female.AlternateTextures = SetTextureSets(state, newarmoraddon.FirstPersonModel.Female.AlternateTextures, oldMaterial.ID, newMaterial.ID);
+                }
+                if (newarmoraddon.FirstPersonModel?.Male?.AlternateTextures != null)
+                {
+                    newarmoraddon.FirstPersonModel.Male.AlternateTextures = SetTextureSets(state, newarmoraddon.FirstPersonModel.Male.AlternateTextures, oldMaterial.ID, newMaterial.ID);
+                }
+
+                state.PatchMod.ArmorAddons.Set(newarmoraddon);
                 newarmature.Add(newarmoraddon);
             }
             newarmor.Armature.Clear();
@@ -848,7 +922,6 @@ namespace ArmouryofTamriel2Generator
                     CreateArmor(state, armor, Material.OrichalcumArmor, Material.IronArmor, Style.OrcishStyle);
                     CreateArmor(state, armor, Material.OrichalcumArmor, Material.SteelArmor, Style.OrcishStyle);
                     CreateArmor(state, armor, Material.OrichalcumArmor, Material.MoonstoneArmor, Style.OrcishStyle, true);
-                    CreateArmor(state, armor, Material.OrichalcumArmor, Material.OrichalcumArmor, Style.OrcishStyle);
                     CreateArmor(state, armor, Material.OrichalcumArmor, Material.QuickSilverArmor, Style.OrcishStyle, true);
                     CreateArmor(state, armor, Material.OrichalcumArmor, Material.DwarvenArmor, Style.OrcishStyle);
                     CreateArmor(state, armor, Material.OrichalcumArmor, Material.GlassArmor, Style.OrcishStyle, true);
@@ -919,6 +992,7 @@ namespace ArmouryofTamriel2Generator
                     CreateArmor(state, armor, Material.IronArmor, Material.DwarvenArmor);
                     CreateArmor(state, armor, Material.IronArmor, Material.GlassArmor);
                     CreateArmor(state, armor, Material.IronArmor, Material.EbonyArmor);
+                    CreateArmor(state, armor, Material.IronArmor, Material.DaedricArmor);
                     CreateArmor(state, armor, Material.IronArmor, Material.ALTEbonyArmor);
                     CreateArmor(state, armor, Material.IronArmor, Material.ALTDaedricArmor);
                 }
@@ -931,6 +1005,7 @@ namespace ArmouryofTamriel2Generator
                     CreateArmor(state, armor, Material.SteelArmor, Material.DwarvenArmor);
                     CreateArmor(state, armor, Material.SteelArmor, Material.GlassArmor);
                     CreateArmor(state, armor, Material.SteelArmor, Material.EbonyArmor);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.DaedricArmor);
                     CreateArmor(state, armor, Material.SteelArmor, Material.ALTEbonyArmor);
                     CreateArmor(state, armor, Material.SteelArmor, Material.ALTDaedricArmor);
                 }
@@ -943,6 +1018,7 @@ namespace ArmouryofTamriel2Generator
                     CreateArmor(state, armor, Material.SteelArmor, Material.DwarvenArmor, Style.ScaleStyle);
                     CreateArmor(state, armor, Material.SteelArmor, Material.GlassArmor, Style.ScaleStyle);
                     CreateArmor(state, armor, Material.SteelArmor, Material.EbonyArmor, Style.ScaleStyle);
+                    CreateArmor(state, armor, Material.SteelArmor, Material.DaedricArmor, Style.ScaleStyle);
                     CreateArmor(state, armor, Material.SteelArmor, Material.ALTEbonyArmor, Style.ScaleStyle);
                     CreateArmor(state, armor, Material.SteelArmor, Material.ALTDaedricArmor, Style.ScaleStyle);
                 }
