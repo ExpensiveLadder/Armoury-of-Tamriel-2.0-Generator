@@ -50,7 +50,6 @@ namespace ArmouryofTamriel2Generator
             Ingot = ingot;
             Keyword = keyword;
             ID = id;
-            ID = name;
             PerkRequirement = new ConditionFloat() { CompareOperator = CompareOperator.EqualTo, ComparisonValue = 1, Data = new FunctionConditionData() { Function = Condition.Function.HasPerk, ParameterOneRecord = new FormLink<IPerkGetter>(smithingPerk) } };
         }
 
@@ -197,7 +196,7 @@ namespace ArmouryofTamriel2Generator
                 }
             }
 
-            return texturelist;
+            return temptexturelist;
         }
 
         public static void CreateWeapon(IPatcherState<ISkyrimMod, ISkyrimModGetter> state, IWeaponGetter weapon, Material oldMaterial, Material newMaterial, Style style)
@@ -1021,6 +1020,19 @@ namespace ArmouryofTamriel2Generator
                     CreateArmor(state, armor, Material.SteelArmor, Material.DaedricArmor, Style.ScaleStyle);
                     CreateArmor(state, armor, Material.SteelArmor, Material.ALTEbonyArmor, Style.ScaleStyle);
                     CreateArmor(state, armor, Material.SteelArmor, Material.ALTDaedricArmor, Style.ScaleStyle);
+                }
+                else if (armor.EditorID.Contains("400ArmorSilverDawnguard"))
+                {
+                    CreateArmor(state, armor, Material.QuickSilverArmor, Material.IronArmor, Style.DawnguardStyle);
+                    CreateArmor(state, armor, Material.QuickSilverArmor, Material.SteelArmor, Style.DawnguardStyle);
+                    CreateArmor(state, armor, Material.QuickSilverArmor, Material.MoonstoneArmor, Style.DawnguardStyle, true);
+                    CreateArmor(state, armor, Material.QuickSilverArmor, Material.OrichalcumArmor, Style.DawnguardStyle);
+                    CreateArmor(state, armor, Material.QuickSilverArmor, Material.DwarvenArmor, Style.DawnguardStyle);
+                    CreateArmor(state, armor, Material.QuickSilverArmor, Material.GlassArmor, Style.DawnguardStyle, true);
+                    CreateArmor(state, armor, Material.QuickSilverArmor, Material.EbonyArmor, Style.DawnguardStyle);
+                    CreateArmor(state, armor, Material.QuickSilverArmor, Material.DaedricArmor, Style.DawnguardStyle);
+                    CreateArmor(state, armor, Material.QuickSilverArmor, Material.ALTEbonyArmor, Style.DawnguardStyle);
+                    CreateArmor(state, armor, Material.QuickSilverArmor, Material.ALTDaedricArmor, Style.DawnguardStyle);
                 }
             }
         }
