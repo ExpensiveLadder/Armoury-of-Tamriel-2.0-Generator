@@ -119,11 +119,14 @@ namespace ArmouryofTamriel2Generator
         public static readonly Style OrcishStyle = new("Orcish", FormKey.Factory("019051:Armoury of Tamriel.esm"));
         public static readonly Style AncientStyle = new("Ancient", FormKey.Factory("019054:Armoury of Tamriel.esm"));
         public static readonly Style DawnguardStyle = new("Dawnguard", FormKey.Factory("02C34A:Armoury of Tamriel.esm"));
+        public static readonly Style ThalmorStyle = new("Thalmor", FormKey.Factory("02C369:Armoury of Tamriel.esm"));
 
         public static readonly Style HideStyle = new("Hide");
         public static readonly Style LeatherStyle = new("Leather", FormKey.Factory("02B6EA:Armoury of Tamriel.esm"));
         public static readonly Style ScaleStyle = new("Scale", FormKey.Factory("02B6E8:Armoury of Tamriel.esm"));
         public static readonly Style CompanionsStyle = new("Companions", FormKey.Factory("02B6EB:Armoury of Tamriel.esm"));
+        public static readonly Style VampireStyle = new("Vampire", FormKey.Factory("02C34B:Armoury of Tamriel.esm"));
+        public static readonly Style StormcloakStyle = new("Stormcloak", FormKey.Factory("02B6E9:Armoury of Tamriel.esm"));
     }
 
     public class RuneInfo
@@ -1229,7 +1232,7 @@ namespace ArmouryofTamriel2Generator
                 var weapon = weaponidk.Record;
 
                 if (weapon.EditorID == null) continue;
-                if (weapon.EditorID.Contains("400Weapon"))
+                if (weapon.EditorID.Contains("400"))
                 {
                     bool generateRunedWeapons = false;
                     Style style;

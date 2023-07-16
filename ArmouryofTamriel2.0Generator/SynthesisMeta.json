@@ -1,0 +1,15 @@
+{
+  "Nickname": "ArmouryofTamriel2.0Generator",
+  "Visibility": "Exclude",
+  "OneLineDescription": "",
+  "LongDescription": "",
+  "PreferredAutoVersioning": "Default",
+  "RequiredMods": [],
+  "TargetedReleases": [
+    "SkyrimLE",
+    "SkyrimSE",
+    "SkyrimVR",
+    "EnderalLE",
+    "EnderalSE"
+  ]
+}
